@@ -3,9 +3,7 @@
 namespace openlob {
 
 void EventQueue::push(Event event) {
-  if (event.sequence_id == 0) {
-    event.sequence_id = ++next_sequence_id_;
-  }
+  event.sequence_id = next_sequence_id_++;
   queue_.push(std::move(event));
 }
 

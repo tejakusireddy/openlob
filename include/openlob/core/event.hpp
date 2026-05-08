@@ -15,7 +15,9 @@ struct Event {
   AgentId agent_id{};
   std::optional<OrderId> order_id{};
   std::optional<Order> order{};
-  std::uint64_t sequence_id{};
+  // EventQueue owns sequence_id assignment. Agents and external callers
+  // should not rely on manually assigned sequence IDs.
+  std::uint64_t sequence_id{0};
 };
 
 struct EventComparator {
