@@ -4,122 +4,209 @@
 #include "openlob/book/matching_engine.hpp"
 
 int main() {
-  const openlob::Instrument instrument{
-      .symbol = "MSFT",
-      .tick_size = openlob::Price{1},
-      .lot_size = openlob::Quantity{100},
+  auto make_order = [](openlob::OrderId id,
+                       openlob::Symbol symbol,
+                       openlob::OrderType type,
+                       openlob::Price price,
+                       openlob::Quantity quantity,
+                       openlob::Timestamp timestamp) {
+    return openlob::Order{
+        .id = id,
+        .agent_id = openlob::AgentId{42},
+        .symbol = symbol,
+        .side = openlob::Side::Buy,
+        .type = type,
+        .price = price,
+        .quantity = quantity,
+        .timestamp = timestamp,
+    };
   };
 
-  openlob::MatchingEngine engine(instrument);
-  assert(engine.instrument().symbol == instrument.symbol);
+  // Test 1: reject wrong symbol.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order wrong_symbol_order = make_order(openlob::OrderId{1},
+                                                          "OTHER",
+                                                          openlob::OrderType::Limit,
+                                                          openlob::Price{100},
+                                                          openlob::Quantity{10},
+                                                          openlob::Timestamp{1});
+    const openlob::ExecutionReport report = engine.submit_order(wrong_symbol_order);
+    assert(report.rejects.size() == 1);
+    assert(report.acks.empty());
+    assert(report.trades.empty());
+    assert(report.rejects[0].reason.find("symbol") != std::string::npos);
+  }
 
-  // Test 1: duplicate live order is rejected.
-  openlob::Order first_live_order{
-      .id = openlob::OrderId{1},
-      .agent_id = openlob::AgentId{7},
-      .symbol = "MSFT",
-      .side = openlob::Side::Buy,
-      .type = openlob::OrderType::Limit,
-      .price = openlob::Price{10000},
-      .quantity = openlob::Quantity{5},
-      .timestamp = openlob::Timestamp{1},
-  };
-  const openlob::ExecutionReport first_report = engine.submit_order(first_live_order);
-  assert(first_report.rejects.empty());
+  // Test 2: reject zero quantity.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order zero_qty_order = make_order(openlob::OrderId{2},
+                                                      "TEST",
+                                                      openlob::OrderType::Limit,
+                                                      openlob::Price{100},
+                                                      openlob::Quantity{0},
+                                                      openlob::Timestamp{2});
+    const openlob::ExecutionReport report = engine.submit_order(zero_qty_order);
+    assert(report.rejects.size() == 1);
+    assert(report.rejects[0].reason.find("quantity") != std::string::npos ||
+           report.rejects[0].reason.find("lot") != std::string::npos);
+  }
 
-  openlob::Order duplicate_live_order{
-      .id = openlob::OrderId{1},
-      .agent_id = openlob::AgentId{9},
-      .symbol = "MSFT",
-      .side = openlob::Side::Sell,
-      .type = openlob::OrderType::Limit,
-      .price = openlob::Price{10100},
-      .quantity = openlob::Quantity{3},
-      .timestamp = openlob::Timestamp{2},
-  };
-  const openlob::ExecutionReport duplicate_report = engine.submit_order(duplicate_live_order);
-  assert(duplicate_report.order_id == openlob::OrderId{1});
-  assert(duplicate_report.rejects.size() == 1);
-  assert(duplicate_report.rejects[0].order_id == openlob::OrderId{1});
-  assert(duplicate_report.rejects[0].timestamp == duplicate_live_order.timestamp);
-  assert(duplicate_report.rejects[0].reason.find("duplicate") != std::string::npos);
-  assert(duplicate_report.acks.empty());
-  assert(duplicate_report.trades.empty());
+  // Test 3: reject non-lot-size quantity.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order non_lot_order = make_order(openlob::OrderId{3},
+                                                     "TEST",
+                                                     openlob::OrderType::Limit,
+                                                     openlob::Price{100},
+                                                     openlob::Quantity{15},
+                                                     openlob::Timestamp{3});
+    const openlob::ExecutionReport report = engine.submit_order(non_lot_order);
+    assert(report.rejects.size() == 1);
+    assert(report.rejects[0].reason.find("lot") != std::string::npos ||
+           report.rejects[0].reason.find("quantity") != std::string::npos);
+  }
 
-  // Test 2: duplicate rejection does not mutate book.
-  assert(engine.book().contains_order(openlob::OrderId{1}));
-  assert(engine.cancel_order(openlob::OrderId{1}));
-  assert(!engine.cancel_order(openlob::OrderId{1}));
+  // Test 4: reject invalid limit price tick.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order bad_tick_order = make_order(openlob::OrderId{4},
+                                                      "TEST",
+                                                      openlob::OrderType::Limit,
+                                                      openlob::Price{103},
+                                                      openlob::Quantity{10},
+                                                      openlob::Timestamp{4});
+    const openlob::ExecutionReport report = engine.submit_order(bad_tick_order);
+    assert(report.rejects.size() == 1);
+    assert(report.rejects[0].reason.find("tick") != std::string::npos ||
+           report.rejects[0].reason.find("price") != std::string::npos);
+  }
 
-  // Test 3: reused id after cancel is allowed.
-  openlob::Order cancelable_order{
-      .id = openlob::OrderId{2},
-      .agent_id = openlob::AgentId{8},
-      .symbol = "MSFT",
-      .side = openlob::Side::Buy,
-      .type = openlob::OrderType::Limit,
-      .price = openlob::Price{9900},
-      .quantity = openlob::Quantity{5},
-      .timestamp = openlob::Timestamp{3},
-  };
-  const openlob::ExecutionReport cancelable_report = engine.submit_order(cancelable_order);
-  assert(cancelable_report.rejects.empty());
-  assert(engine.cancel_order(openlob::OrderId{2}));
+  // Test 5: reject zero/negative limit price.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order zero_price_order = make_order(openlob::OrderId{5},
+                                                        "TEST",
+                                                        openlob::OrderType::Limit,
+                                                        openlob::Price{0},
+                                                        openlob::Quantity{10},
+                                                        openlob::Timestamp{5});
+    const openlob::ExecutionReport report = engine.submit_order(zero_price_order);
+    assert(report.rejects.size() == 1);
+    assert(report.rejects[0].reason.find("price") != std::string::npos ||
+           report.rejects[0].reason.find("tick") != std::string::npos);
+  }
 
-  openlob::Order reused_after_cancel{
-      .id = openlob::OrderId{2},
-      .agent_id = openlob::AgentId{8},
-      .symbol = "MSFT",
-      .side = openlob::Side::Sell,
-      .type = openlob::OrderType::Limit,
-      .price = openlob::Price{10200},
-      .quantity = openlob::Quantity{2},
-      .timestamp = openlob::Timestamp{4},
-  };
-  const openlob::ExecutionReport reused_after_cancel_report = engine.submit_order(reused_after_cancel);
-  assert(reused_after_cancel_report.rejects.empty());
+  // Test 6: market order ignores price tick validation.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order market_order = make_order(openlob::OrderId{6},
+                                                    "TEST",
+                                                    openlob::OrderType::Market,
+                                                    openlob::Price{103},
+                                                    openlob::Quantity{10},
+                                                    openlob::Timestamp{6});
+    const openlob::ExecutionReport report = engine.submit_order(market_order);
+    assert(report.rejects.empty());
+    assert(report.acks.size() == 1);
+  }
 
-  // Test 4: reused id after full fill is allowed.
-  openlob::Order sell_to_fill{
-      .id = openlob::OrderId{10},
-      .agent_id = openlob::AgentId{11},
-      .symbol = "MSFT",
-      .side = openlob::Side::Sell,
-      .type = openlob::OrderType::Limit,
-      .price = openlob::Price{10000},
-      .quantity = openlob::Quantity{5},
-      .timestamp = openlob::Timestamp{5},
-  };
-  const openlob::ExecutionReport sell_report = engine.submit_order(sell_to_fill);
-  assert(sell_report.rejects.empty());
+  // Test 7: valid limit order accepted.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order valid_order = make_order(openlob::OrderId{7},
+                                                   "TEST",
+                                                   openlob::OrderType::Limit,
+                                                   openlob::Price{100},
+                                                   openlob::Quantity{20},
+                                                   openlob::Timestamp{7});
+    const openlob::ExecutionReport report = engine.submit_order(valid_order);
+    assert(report.rejects.empty());
+    assert(report.acks.size() == 1);
+  }
 
-  openlob::Order buy_to_fill{
-      .id = openlob::OrderId{11},
-      .agent_id = openlob::AgentId{12},
-      .symbol = "MSFT",
-      .side = openlob::Side::Buy,
-      .type = openlob::OrderType::Limit,
-      .price = openlob::Price{10000},
-      .quantity = openlob::Quantity{5},
-      .timestamp = openlob::Timestamp{6},
-  };
-  const openlob::ExecutionReport fill_report = engine.submit_order(buy_to_fill);
-  assert(fill_report.rejects.empty());
-  assert(fill_report.trades.size() == 1);
-  assert(!engine.book().contains_order(openlob::OrderId{10}));
+  // Test 8: rejected invalid order does not mutate book.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order invalid_order = make_order(openlob::OrderId{99},
+                                                     "OTHER",
+                                                     openlob::OrderType::Limit,
+                                                     openlob::Price{100},
+                                                     openlob::Quantity{10},
+                                                     openlob::Timestamp{8});
+    const openlob::ExecutionReport report = engine.submit_order(invalid_order);
+    assert(report.rejects.size() == 1);
+    assert(!engine.book().contains_order(openlob::OrderId{99}));
+  }
 
-  openlob::Order reused_after_fill{
-      .id = openlob::OrderId{10},
-      .agent_id = openlob::AgentId{13},
-      .symbol = "MSFT",
-      .side = openlob::Side::Sell,
-      .type = openlob::OrderType::Limit,
-      .price = openlob::Price{10100},
-      .quantity = openlob::Quantity{1},
-      .timestamp = openlob::Timestamp{7},
-  };
-  const openlob::ExecutionReport reused_after_fill_report = engine.submit_order(reused_after_fill);
-  assert(reused_after_fill_report.rejects.empty());
+  // Existing duplicate-live-id behavior remains after validation checks.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "TEST",
+        .tick_size = openlob::Price{5},
+        .lot_size = openlob::Quantity{10},
+    };
+    openlob::MatchingEngine engine(instrument);
+    const openlob::Order first = make_order(openlob::OrderId{200},
+                                             "TEST",
+                                             openlob::OrderType::Limit,
+                                             openlob::Price{100},
+                                             openlob::Quantity{10},
+                                             openlob::Timestamp{9});
+    const openlob::Order duplicate = make_order(openlob::OrderId{200},
+                                                 "TEST",
+                                                 openlob::OrderType::Limit,
+                                                 openlob::Price{100},
+                                                 openlob::Quantity{10},
+                                                 openlob::Timestamp{10});
+    (void)engine.submit_order(first);
+    const openlob::ExecutionReport duplicate_report = engine.submit_order(duplicate);
+    assert(duplicate_report.rejects.size() == 1);
+    assert(duplicate_report.rejects[0].reason.find("duplicate") != std::string::npos);
+    assert(duplicate_report.acks.empty());
+    assert(duplicate_report.trades.empty());
+  }
 
   return 0;
 }

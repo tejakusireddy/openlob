@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "openlob/book/order_book.hpp"
 #include "openlob/core/instrument.hpp"
 #include "openlob/core/execution_report.hpp"
@@ -23,6 +25,8 @@ class MatchingEngine {
   const OrderBook& book() const;
 
  private:
+  [[nodiscard]] std::optional<OrderReject> validate_order(const Order& order) const;
+
   OrderBook order_book_;
 
   // TODO(openlob): Implement price-time priority matching behavior.
