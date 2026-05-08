@@ -1,6 +1,7 @@
 #include "openlob/book/order_book.hpp"
 
 #include <iterator>
+#include <algorithm>
 
 namespace openlob {
 
@@ -32,29 +33,114 @@ std::vector<Trade> OrderBook::add_order(const Order& order) {
     return {};
   }
 
-  if (order.side == Side::Buy) {
-    auto [level_it, inserted] = bids_.try_emplace(order.price, PriceLevel{.price = order.price});
-    (void)inserted;
-    level_it->second.orders.push_back(order);
-    auto order_it = std::prev(level_it->second.orders.end());
-    order_index_.emplace(order.id, OrderLocation{
-                                       .side = Side::Buy,
-                                       .price = order.price,
-                                       .iterator = order_it,
-                                   });
+  Order incoming = order;
+  std::vector<Trade> trades;
+
+  auto match_against_asks = [&]() {
+    while (incoming.quantity.value > 0 && !asks_.empty()) {
+      const bool is_marketable = incoming.type == OrderType::Market || asks_.begin()->first <= incoming.price;
+      if (!is_marketable) {
+        break;
+      }
+
+      auto level_it = asks_.begin();
+      auto& level = level_it->second;
+
+      while (incoming.quantity.value > 0 && !level.orders.empty()) {
+        auto& resting = level.orders.front();
+        const Quantity fill_qty{std::min(incoming.quantity.value, resting.quantity.value)};
+
+        trades.push_back(Trade{
+            .buy_order_id = incoming.id,
+            .sell_order_id = resting.id,
+            .price = resting.price,
+            .quantity = fill_qty,
+            .timestamp = incoming.timestamp,
+        });
+
+        incoming.quantity.value -= fill_qty.value;
+        resting.quantity.value -= fill_qty.value;
+
+        if (resting.quantity.value == 0) {
+          order_index_.erase(resting.id);
+          level.orders.pop_front();
+        }
+      }
+
+      if (level.empty()) {
+        asks_.erase(level_it);
+      }
+    }
+  };
+
+  auto match_against_bids = [&]() {
+    while (incoming.quantity.value > 0 && !bids_.empty()) {
+      const bool is_marketable = incoming.type == OrderType::Market || bids_.begin()->first >= incoming.price;
+      if (!is_marketable) {
+        break;
+      }
+
+      auto level_it = bids_.begin();
+      auto& level = level_it->second;
+
+      while (incoming.quantity.value > 0 && !level.orders.empty()) {
+        auto& resting = level.orders.front();
+        const Quantity fill_qty{std::min(incoming.quantity.value, resting.quantity.value)};
+
+        trades.push_back(Trade{
+            .buy_order_id = resting.id,
+            .sell_order_id = incoming.id,
+            .price = resting.price,
+            .quantity = fill_qty,
+            .timestamp = incoming.timestamp,
+        });
+
+        incoming.quantity.value -= fill_qty.value;
+        resting.quantity.value -= fill_qty.value;
+
+        if (resting.quantity.value == 0) {
+          order_index_.erase(resting.id);
+          level.orders.pop_front();
+        }
+      }
+
+      if (level.empty()) {
+        bids_.erase(level_it);
+      }
+    }
+  };
+
+  if (incoming.side == Side::Buy) {
+    match_against_asks();
   } else {
-    auto [level_it, inserted] = asks_.try_emplace(order.price, PriceLevel{.price = order.price});
-    (void)inserted;
-    level_it->second.orders.push_back(order);
-    auto order_it = std::prev(level_it->second.orders.end());
-    order_index_.emplace(order.id, OrderLocation{
-                                       .side = Side::Sell,
-                                       .price = order.price,
-                                       .iterator = order_it,
-                                   });
+    match_against_bids();
   }
 
-  return {};
+  if (incoming.type == OrderType::Limit && incoming.quantity.value > 0) {
+    if (incoming.side == Side::Buy) {
+      auto [level_it, inserted] = bids_.try_emplace(incoming.price, PriceLevel{.price = incoming.price});
+      (void)inserted;
+      level_it->second.orders.push_back(incoming);
+      auto order_it = std::prev(level_it->second.orders.end());
+      order_index_.emplace(incoming.id, OrderLocation{
+                                            .side = Side::Buy,
+                                            .price = incoming.price,
+                                            .iterator = order_it,
+                                        });
+    } else {
+      auto [level_it, inserted] = asks_.try_emplace(incoming.price, PriceLevel{.price = incoming.price});
+      (void)inserted;
+      level_it->second.orders.push_back(incoming);
+      auto order_it = std::prev(level_it->second.orders.end());
+      order_index_.emplace(incoming.id, OrderLocation{
+                                            .side = Side::Sell,
+                                            .price = incoming.price,
+                                            .iterator = order_it,
+                                        });
+    }
+  }
+
+  return trades;
 }
 
 bool OrderBook::cancel_order(OrderId order_id) {
