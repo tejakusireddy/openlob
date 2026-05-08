@@ -38,6 +38,7 @@ class OrderBook {
 
   std::vector<Trade> add_order(const Order& order);
   bool cancel_order(OrderId order_id);
+  [[nodiscard]] bool contains_order(OrderId order_id) const;
   [[nodiscard]] std::size_t order_count() const;
   [[nodiscard]] std::size_t bid_level_count() const;
   [[nodiscard]] std::size_t ask_level_count() const;

@@ -248,5 +248,66 @@ int main() {
     assert(!book.cancel_order(openlob::OrderId{1}));
   }
 
+  // Test 13: contains_order false on empty book.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "AAPL",
+        .tick_size = openlob::Price{1},
+        .lot_size = openlob::Quantity{100},
+    };
+    openlob::OrderBook book(instrument);
+    assert(!book.contains_order(openlob::OrderId{1}));
+  }
+
+  // Test 14: contains_order true after storing non-crossing limit order.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "AAPL",
+        .tick_size = openlob::Price{1},
+        .lot_size = openlob::Quantity{100},
+    };
+    openlob::OrderBook book(instrument);
+    (void)book.add_order(make_order(openlob::OrderId{7},
+                                    openlob::Side::Buy,
+                                    openlob::Price{100},
+                                    openlob::Quantity{5}));
+    assert(book.contains_order(openlob::OrderId{7}));
+  }
+
+  // Test 15: contains_order false after cancel_order.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "AAPL",
+        .tick_size = openlob::Price{1},
+        .lot_size = openlob::Quantity{100},
+    };
+    openlob::OrderBook book(instrument);
+    (void)book.add_order(make_order(openlob::OrderId{8},
+                                    openlob::Side::Buy,
+                                    openlob::Price{100},
+                                    openlob::Quantity{5}));
+    assert(book.cancel_order(openlob::OrderId{8}));
+    assert(!book.contains_order(openlob::OrderId{8}));
+  }
+
+  // Test 16: contains_order false after full fill removal.
+  {
+    const openlob::Instrument instrument{
+        .symbol = "AAPL",
+        .tick_size = openlob::Price{1},
+        .lot_size = openlob::Quantity{100},
+    };
+    openlob::OrderBook book(instrument);
+    (void)book.add_order(make_order(openlob::OrderId{9},
+                                    openlob::Side::Sell,
+                                    openlob::Price{100},
+                                    openlob::Quantity{5}));
+    (void)book.add_order(make_order(openlob::OrderId{10},
+                                    openlob::Side::Buy,
+                                    openlob::Price{100},
+                                    openlob::Quantity{5}));
+    assert(!book.contains_order(openlob::OrderId{9}));
+  }
+
   return 0;
 }

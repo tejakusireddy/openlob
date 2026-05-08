@@ -174,6 +174,8 @@ bool OrderBook::cancel_order(OrderId order_id) {
   return true;
 }
 
+bool OrderBook::contains_order(OrderId order_id) const { return order_index_.contains(order_id); }
+
 std::size_t OrderBook::order_count() const { return order_index_.size(); }
 
 std::size_t OrderBook::bid_level_count() const { return bids_.size(); }
