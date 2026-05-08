@@ -1,16 +1,25 @@
 #pragma once
 
+#include <list>
+
+#include "openlob/core/order.hpp"
 #include "openlob/core/types.hpp"
 
 namespace openlob {
 
 struct PriceLevel {
   Price price{};
-  Quantity aggregate_quantity{};
+  std::list<Order> orders{};
 
-  // TODO(openlob): Maintain FIFO queue of orders at this price.
-  // TODO(openlob): Keep aggregate quantity synchronized with queue updates.
-  // TODO(openlob): Add queue-position tracking utilities.
+  [[nodiscard]] Quantity total_quantity() const {
+    Quantity total{};
+    for (const auto& order : orders) {
+      total.value += order.quantity.value;
+    }
+    return total;
+  }
+
+  [[nodiscard]] bool empty() const { return orders.empty(); }
 };
 
 }  // namespace openlob

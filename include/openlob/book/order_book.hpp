@@ -1,8 +1,12 @@
 #pragma once
 
+#include <functional>
+#include <map>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
+#include "openlob/book/price_level.hpp"
 #include "openlob/core/instrument.hpp"
 #include "openlob/core/order.hpp"
 #include "openlob/core/trade.hpp"
@@ -12,6 +16,18 @@ namespace openlob {
 
 class OrderBook {
  public:
+  struct OrderIdHash {
+    std::size_t operator()(const OrderId& id) const noexcept {
+      return std::hash<std::uint64_t>{}(id.value);
+    }
+  };
+
+  struct OrderLocation {
+    Side side{};
+    Price price{};
+    std::list<Order>::iterator iterator{};
+  };
+
   explicit OrderBook(Instrument instrument);
 
   [[nodiscard]] const Instrument& instrument() const;
@@ -22,15 +38,18 @@ class OrderBook {
 
   std::vector<Trade> add_order(const Order& order);
   bool cancel_order(OrderId order_id);
+  [[nodiscard]] std::size_t order_count() const;
+  [[nodiscard]] std::size_t bid_level_count() const;
+  [[nodiscard]] std::size_t ask_level_count() const;
 
  private:
   Instrument instrument_;
-  std::size_t live_order_count_{0};
+  std::map<Price, PriceLevel, std::greater<Price>> bids_{};
+  std::map<Price, PriceLevel, std::less<Price>> asks_{};
+  std::unordered_map<OrderId, OrderLocation, OrderIdHash> order_index_{};
 
-  // TODO(openlob): Implement full L3 price-time priority model.
-  // TODO(openlob): Add bid/ask maps keyed by price.
-  // TODO(openlob): Add per-price FIFO queues for resting orders.
-  // TODO(openlob): Add order-id lookup for cancel/replace operations.
+  // TODO(openlob): Add duplicate OrderId rejection via ExecutionReport path.
+  // TODO(openlob): Implement full price-time priority matching behavior.
   // TODO(openlob): Implement partial fills and residual order handling.
   // TODO(openlob): Track queue position transitions at each level.
 };
