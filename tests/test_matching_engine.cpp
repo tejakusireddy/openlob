@@ -3,7 +3,14 @@
 #include "openlob/book/matching_engine.hpp"
 
 int main() {
-  openlob::MatchingEngine engine("MSFT");
+  const openlob::Instrument instrument{
+      .symbol = "MSFT",
+      .tick_size = openlob::Price{1},
+      .lot_size = openlob::Quantity{100},
+  };
+
+  openlob::MatchingEngine engine(instrument);
+  assert(engine.instrument().symbol == instrument.symbol);
 
   openlob::Order order{
       .id = openlob::OrderId{1},

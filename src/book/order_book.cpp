@@ -2,9 +2,11 @@
 
 namespace openlob {
 
-OrderBook::OrderBook(Symbol symbol) : symbol_(std::move(symbol)) {}
+OrderBook::OrderBook(Instrument instrument) : instrument_(std::move(instrument)) {}
 
-const Symbol& OrderBook::symbol() const { return symbol_; }
+const Instrument& OrderBook::instrument() const { return instrument_; }
+
+const Symbol& OrderBook::symbol() const { return instrument_.symbol; }
 
 bool OrderBook::empty() const { return live_order_count_ == 0; }
 

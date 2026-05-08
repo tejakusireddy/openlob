@@ -2,7 +2,7 @@
 
 namespace openlob {
 
-MatchingEngine::MatchingEngine(Symbol symbol) : order_book_(std::move(symbol)) {}
+MatchingEngine::MatchingEngine(Instrument instrument) : order_book_(std::move(instrument)) {}
 
 ExecutionReport MatchingEngine::submit_order(const Order& order) {
   ExecutionReport report{};
@@ -16,6 +16,8 @@ ExecutionReport MatchingEngine::submit_order(const Order& order) {
 }
 
 bool MatchingEngine::cancel_order(OrderId order_id) { return order_book_.cancel_order(order_id); }
+
+const Instrument& MatchingEngine::instrument() const { return order_book_.instrument(); }
 
 OrderBook& MatchingEngine::book() { return order_book_; }
 

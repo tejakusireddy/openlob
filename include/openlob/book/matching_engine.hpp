@@ -1,6 +1,7 @@
 #pragma once
 
 #include "openlob/book/order_book.hpp"
+#include "openlob/core/instrument.hpp"
 #include "openlob/core/execution_report.hpp"
 #include "openlob/core/order.hpp"
 
@@ -8,7 +9,7 @@ namespace openlob {
 
 class MatchingEngine {
  public:
-  explicit MatchingEngine(Symbol symbol);
+  explicit MatchingEngine(Instrument instrument);
 
   // MatchingEngine is synchronous for deterministic matching and direct unit testing.
   // It must only be called by Simulator/exchange plumbing.
@@ -17,6 +18,7 @@ class MatchingEngine {
   ExecutionReport submit_order(const Order& order);
   bool cancel_order(OrderId order_id);
 
+  [[nodiscard]] const Instrument& instrument() const;
   OrderBook& book();
   const OrderBook& book() const;
 

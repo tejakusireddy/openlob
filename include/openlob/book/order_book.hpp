@@ -3,6 +3,7 @@
 #include <optional>
 #include <vector>
 
+#include "openlob/core/instrument.hpp"
 #include "openlob/core/order.hpp"
 #include "openlob/core/trade.hpp"
 #include "openlob/core/types.hpp"
@@ -11,8 +12,9 @@ namespace openlob {
 
 class OrderBook {
  public:
-  explicit OrderBook(Symbol symbol);
+  explicit OrderBook(Instrument instrument);
 
+  [[nodiscard]] const Instrument& instrument() const;
   [[nodiscard]] const Symbol& symbol() const;
   [[nodiscard]] bool empty() const;
   [[nodiscard]] std::optional<Price> best_bid() const;
@@ -22,7 +24,7 @@ class OrderBook {
   bool cancel_order(OrderId order_id);
 
  private:
-  Symbol symbol_;
+  Instrument instrument_;
   std::size_t live_order_count_{0};
 
   // TODO(openlob): Implement full L3 price-time priority model.
