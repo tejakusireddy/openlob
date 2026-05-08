@@ -16,7 +16,12 @@ int main() {
       .timestamp = openlob::Timestamp{1},
   };
 
-  const auto trades = engine.submit_order(order);
-  assert(trades.empty());
+  const openlob::ExecutionReport report = engine.submit_order(order);
+  assert(report.order_id == order.id);
+  assert(report.trades.empty());
+  assert(report.acks.size() == 1);
+  assert(report.acks.front().order_id == order.id);
+  assert(report.acks.front().timestamp == order.timestamp);
+  assert(report.rejects.empty());
   return 0;
 }
