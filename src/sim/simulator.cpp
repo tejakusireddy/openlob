@@ -13,11 +13,16 @@ void Simulator::run() {
       break;
     }
     current_time_ = event->timestamp;
+    ++processed_events_;
 
     // TODO(openlob): Dispatch events to exchange and agent handlers.
   }
 }
 
 Timestamp Simulator::current_time() const { return current_time_; }
+
+std::size_t Simulator::pending_events() const { return event_queue_.size(); }
+
+std::size_t Simulator::processed_events() const { return processed_events_; }
 
 }  // namespace openlob

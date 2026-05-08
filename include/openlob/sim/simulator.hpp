@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include "openlob/core/event.hpp"
 #include "openlob/core/timestamp.hpp"
 #include "openlob/sim/event_queue.hpp"
@@ -14,18 +16,18 @@ class Simulator {
   void run();
 
   [[nodiscard]] Timestamp current_time() const;
+  [[nodiscard]] std::size_t pending_events() const;
+  [[nodiscard]] std::size_t processed_events() const;
 
  private:
+  // Simulator is the deterministic orchestration layer.
   EventQueue event_queue_;
   Timestamp current_time_{Timestamp::zero()};
+  std::size_t processed_events_{0};
 
-  // Simulator is the async boundary that will transform synchronous
-  // matching outcomes into latency-aware event delivery.
-  // TODO(openlob): Integrate agent wakeups and callbacks.
-  // TODO(openlob): Handle exchange-level events and order acknowledgments.
-  // TODO(openlob): Publish market data updates to subscribed agents.
-  // TODO(openlob): Integrate configurable latency model into event scheduling.
-  // TODO(openlob): Add deterministic replay facilities and audit traces.
+  // Phase 1 run() only advances time and counts processed events.
+  // Later it will route exchange events, agent wakeups, latency-delayed
+  // acks/fills/rejects, and market data events.
 };
 
 }  // namespace openlob

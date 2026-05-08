@@ -13,3 +13,11 @@ add_test(NAME test_matching_engine COMMAND test_matching_engine)
 add_executable(test_event_queue test_event_queue.cpp)
 target_link_libraries(test_event_queue PRIVATE openlob_core)
 add_test(NAME test_event_queue COMMAND test_event_queue)
+
+add_executable(test_simulator test_simulator.cpp)
+target_link_libraries(test_simulator PRIVATE openlob_core)
+add_test(NAME test_simulator COMMAND test_simulator)
+
+add_executable(test_integration_foundation test_integration_foundation.cpp)
+target_link_libraries(test_integration_foundation PRIVATE openlob_core)
+add_test(NAME test_integration_foundation COMMAND test_integration_foundation)
