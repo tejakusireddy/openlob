@@ -1,0 +1,15 @@
+add_executable(test_smoke test_smoke.cpp)
+target_link_libraries(test_smoke PRIVATE openlob_core)
+add_test(NAME test_smoke COMMAND test_smoke)
+
+add_executable(test_order_book test_order_book.cpp)
+target_link_libraries(test_order_book PRIVATE openlob_core)
+add_test(NAME test_order_book COMMAND test_order_book)
+
+add_executable(test_matching_engine test_matching_engine.cpp)
+target_link_libraries(test_matching_engine PRIVATE openlob_core)
+add_test(NAME test_matching_engine COMMAND test_matching_engine)
+
+add_executable(test_event_queue test_event_queue.cpp)
+target_link_libraries(test_event_queue PRIVATE openlob_core)
+add_test(NAME test_event_queue COMMAND test_event_queue)
